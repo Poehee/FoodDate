@@ -1,0 +1,23 @@
+name: fooddate
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fooddate}
+      POSTGRES_USER: ${POSTGRES_USER:-fooddate}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/create_env.py first}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - data:/var/lib/postgresql/data
+    healthcheck:
+      # TCP, so the temporary socket-only server during first start does not count as ready
+      test: ["CMD-SHELL", 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+volumes:
+  data:

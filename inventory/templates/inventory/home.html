@@ -1,0 +1,16 @@
+{% extends "inventory/base.html" %}
+{% load static %}
+
+{% block title %}Stock · FoodDate{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <h1>Stock</h1>
+    <p class="muted">What's in your freezers and when to eat it.</p>
+  </header>
+  <section class="card empty" aria-labelledby="empty-title">
+    <img src="{% static 'inventory/icon.svg' %}" width="56" height="56" alt="">
+    <h2 id="empty-title">Nothing in stock</h2>
+    <p class="muted">Your food will appear here, soonest expiration first.</p>
+  </section>
+{% endblock %}
