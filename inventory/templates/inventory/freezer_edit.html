@@ -1,0 +1,87 @@
+{% extends "inventory/base.html" %}
+{% load inventory_tags %}
+
+{% block title %}Edit {{ freezer.name }} · FoodDate{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <a class="back" href="{{ freezer.get_absolute_url }}">{% icon "back" %} {{ freezer.name }}</a>
+    <h1>Edit freezer</h1>
+  </header>
+
+  <div class="edit-layout">
+    <section class="edit-preview" aria-label="Preview">
+      {% include "inventory/_totals.html" with live=True %}
+      {% include "inventory/_freezer_picture.html" %}
+    </section>
+
+    <form method="post" class="card form" novalidate data-live-form>
+      {% csrf_token %}
+      {# Pressing Enter in any field saves, instead of triggering the first move or delete button #}
+      <button class="visually-hidden" type="submit" name="action" value="save" tabindex="-1" aria-hidden="true">Save</button>
+      {% include "inventory/_field.html" with field=name_form.name %}
+
+      {{ formset.management_form }}
+      {% for error in formset.non_form_errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+
+      {% if freezer.has_drawers %}
+        <fieldset class="drawers" id="drawers">
+          <legend>Drawers, top to bottom</legend>
+          <ol class="drawer-rows">
+            {% for form in formset %}
+              <li class="drawer-row" id="compartment-{{ form.instance.pk }}">
+                {{ form.id }}
+                <div class="field{% if form.name.errors %} field--invalid{% endif %}">
+                  <label for="{{ form.name.id_for_label }}">Drawer {{ forloop.counter }} name</label>
+                  {{ form.name }}
+                  {% include "inventory/_errors.html" with field=form.name %}
+                </div>
+                <div class="field{% if form.capacity.errors %} field--invalid{% endif %}">
+                  <label for="{{ form.capacity.id_for_label }}"><span class="visually-hidden">Drawer {{ forloop.counter }} </span>Portions</label>
+                  {{ form.capacity }}
+                  {% include "inventory/_errors.html" with field=form.capacity %}
+                </div>
+                <div class="drawer-actions">
+                  <button class="icon-button" type="submit" name="action" value="up:{{ form.instance.pk }}"{% if forloop.first %} disabled{% endif %}>{% icon "up" "Move up" %}</button>
+                  <button class="icon-button" type="submit" name="action" value="down:{{ form.instance.pk }}"{% if forloop.last %} disabled{% endif %}>{% icon "down" "Move down" %}</button>
+                  <button class="icon-button icon-button--danger" type="submit" name="action" value="delete:{{ form.instance.pk }}"{% if formset|length == 1 %} disabled{% endif %}>{% icon "trash" "Remove drawer" %}</button>
+                </div>
+              </li>
+            {% endfor %}
+          </ol>
+        </fieldset>
+
+        <fieldset class="add-drawer">
+          <legend>Add a drawer</legend>
+          <div class="drawer-row drawer-row--new">
+            {% include "inventory/_field.html" with field=add_form.name %}
+            <div class="field{% if add_form.capacity.errors %} field--invalid{% endif %}">
+              <label for="{{ add_form.capacity.id_for_label }}"><span class="visually-hidden">New drawer </span>Portions</label>
+              {{ add_form.capacity }}
+              {% include "inventory/_errors.html" with field=add_form.capacity %}
+            </div>
+            <div class="drawer-actions">
+              <button class="button" type="submit" name="action" value="add">{% icon "plus" %} Add</button>
+            </div>
+          </div>
+        </fieldset>
+      {% else %}
+        {% for form in formset %}
+          {{ form.id }}
+          {% include "inventory/_field.html" with field=form.capacity %}
+        {% endfor %}
+      {% endif %}
+
+      <div class="form-actions">
+        <button class="button button--primary" type="submit" name="action" value="save">Save changes</button>
+        <a class="button button--quiet" href="{{ freezer.get_absolute_url }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+
+  <section class="danger-zone">
+    <h2>Remove freezer</h2>
+    <p class="muted">Removes {{ freezer.name }} and its {% if freezer.has_drawers %}drawers{% else %}settings{% endif %}.</p>
+    <a class="button button--danger" href="{% url 'inventory:freezer_delete' freezer.pk %}">{% icon "trash" %} Remove {{ freezer.name }}</a>
+  </section>
+{% endblock %}

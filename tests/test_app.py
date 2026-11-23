@@ -7,6 +7,7 @@ from django.utils import formats
 from pytest_django.asserts import assertContains, assertTemplateUsed
 
 
+@pytest.mark.django_db
 def test_home_renders_responsive_layout(client):
     response = client.get(reverse("inventory:home"))
 

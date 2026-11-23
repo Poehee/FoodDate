@@ -1,0 +1,19 @@
+{% extends "inventory/base.html" %}
+{% load inventory_tags %}
+
+{% block title %}Remove {{ freezer.name }} · FoodDate{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <a class="back" href="{% url 'inventory:freezer_edit' freezer.pk %}">{% icon "back" %} Edit {{ freezer.name }}</a>
+    <h1>Remove {{ freezer.name }}?</h1>
+  </header>
+  <form method="post" class="card form">
+    {% csrf_token %}
+    <p>This removes the freezer and its {% if freezer.has_drawers %}drawers{% else %}settings{% endif %}. You can't undo this.</p>
+    <div class="form-actions">
+      <button class="button button--danger" type="submit">Remove freezer</button>
+      <a class="button button--quiet" href="{% url 'inventory:freezer_edit' freezer.pk %}">Cancel</a>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "inventory/base.html" %}
+{% load static %}
+
+{% block title %}Freezers · FoodDate{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <h1>Freezers</h1>
+  </header>
+  <section class="card empty" aria-labelledby="empty-title">
+    <img src="{% static 'inventory/icon.svg' %}" width="56" height="56" alt="">
+    <h2 id="empty-title">Add your first freezer</h2>
+    <p class="muted">An upright freezer with drawers, or a toploader.</p>
+    <a class="button button--primary" href="{% url 'inventory:freezer_create' %}">Add freezer</a>
+  </section>
+{% endblock %}
