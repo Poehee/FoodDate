@@ -1,0 +1,30 @@
+{% extends "inventory/base.html" %}
+{% load inventory_tags %}
+
+{% block title %}#{{ item.pk }} {{ item.content }} · FoodDate{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <a class="back" href="{{ item.compartment.freezer.get_absolute_url }}?drawer={{ item.compartment_id }}#drawer">{% icon "back" %} {{ item.compartment.freezer.name }}</a>
+  </header>
+  <article class="label" style="--h: {{ expiry.hue }}" aria-labelledby="label-title">
+    <p class="label-number">#{{ item.pk }}</p>
+    <h1 id="label-title" class="label-title">{{ item.content }}</h1>
+    {% include "inventory/_expiry.html" %}
+    <dl class="label-facts">
+      <div><dt>Type</dt><dd>{{ item.food_type }}</dd></div>
+      <div><dt>Portions</dt><dd>{{ item.portions }}</dd></div>
+      <div><dt>Frozen</dt><dd>{{ item.frozen_on|date:"SHORT_DATE_FORMAT" }}</dd></div>
+      <div><dt>Expires</dt><dd>{{ item.expires_on|date:"SHORT_DATE_FORMAT" }}</dd></div>
+      {% if location %}<div class="label-wide"><dt>Location</dt><dd>{{ location }}</dd></div>{% endif %}
+    </dl>
+  </article>
+  <div class="form-actions label-actions">
+    <form method="post" action="{% url 'inventory:item_take' item.pk %}">
+      {% csrf_token %}
+      <input type="hidden" name="portions" value="{{ item.portions }}">
+      <button class="button button--primary" type="submit">{% icon "minus" %} Take 1 portion</button>
+    </form>
+    <a class="button" href="{% url 'inventory:item_edit' item.pk %}">{% icon "edit" %} Edit or move</a>
+  </div>
+{% endblock %}

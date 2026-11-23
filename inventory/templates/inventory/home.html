@@ -10,14 +10,18 @@
   </header>
   <section class="card empty" aria-labelledby="empty-title">
     <img src="{% static 'inventory/icon.svg' %}" width="56" height="56" alt="">
-    {% if has_freezers %}
-      <h2 id="empty-title">Nothing in stock</h2>
-      <p class="muted">Your food will appear here, soonest expiration first.</p>
-      <a class="button" href="{% url 'inventory:freezer_list' %}">View freezers</a>
-    {% else %}
+    {% if not has_freezers %}
       <h2 id="empty-title">Add your first freezer</h2>
       <p class="muted">Set up its drawers and how many portions each one holds.</p>
       <a class="button button--primary" href="{% url 'inventory:freezer_create' %}">Add freezer</a>
+    {% elif stock.portions %}
+      <h2 id="empty-title">{{ stock.portions }} portion{{ stock.portions|pluralize }} in {{ stock.containers }} container{{ stock.containers|pluralize }}</h2>
+      <p class="muted">A list with search and filters arrives next. For now, find food per freezer.</p>
+      <a class="button button--primary" href="{% url 'inventory:freezer_list' %}">View freezers</a>
+    {% else %}
+      <h2 id="empty-title">Nothing in stock</h2>
+      <p class="muted">Add food from a drawer in your freezer.</p>
+      <a class="button button--primary" href="{% url 'inventory:freezer_list' %}">View freezers</a>
     {% endif %}
   </section>
 {% endblock %}

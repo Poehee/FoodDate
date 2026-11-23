@@ -17,25 +17,33 @@
     <div class="container topbar-inner">
       <a class="brand" href="{% url 'inventory:home' %}">
         <img src="{% static 'inventory/icon.svg' %}" width="28" height="28" alt="">
-        FoodDate
+        <span class="brand-text">FoodDate</span>
       </a>
       {% with name=request.resolver_match.url_name %}
       <nav class="nav" aria-label="Main">
         <a href="{% url 'inventory:home' %}"{% if name == "home" %} aria-current="page"{% endif %}>Stock</a>
-        <a href="{% url 'inventory:freezer_list' %}"{% if name and "freezer" in name %} aria-current="page"{% endif %}>Freezers</a>
+        <a href="{% url 'inventory:freezer_list' %}"{% if name and "freezer" in name or name and "item" in name %} aria-current="page"{% endif %}>Freezers</a>
+        <a href="{% url 'inventory:settings' %}"{% if name == "settings" %} aria-current="page"{% endif %}>Settings</a>
       </nav>
       {% endwith %}
     </div>
   </header>
   <main id="main" class="container page" tabindex="-1">
-    {% if messages %}
-      <div class="messages" role="status">
-        {% for message in messages %}
-          <p class="message message--{{ message.tags }}">{{ message }}</p>
-        {% endfor %}
-      </div>
-    {% endif %}
     {% block content %}{% endblock %}
   </main>
+  <div class="toasts" data-toasts data-undo-url="{% url 'inventory:item_undo' %}" aria-live="polite">
+    {% for message in messages %}
+      <p class="toast toast--{{ message.tags }}" role="{% if message.tags == 'error' %}alert{% else %}status{% endif %}" data-message>{{ message }}</p>
+    {% endfor %}
+    {% if undo %}
+      <form class="toast" method="post" action="{% url 'inventory:item_undo' %}" data-undo>
+        {% csrf_token %}
+        <input type="hidden" name="token" value="{{ undo.token }}">
+        <p>{{ undo.text }}</p>
+        <button class="button button--quiet" type="submit">Undo</button>
+        <span class="toast-timer" aria-hidden="true"></span>
+      </form>
+    {% endif %}
+  </div>
 </body>
 </html>

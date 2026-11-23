@@ -1,0 +1,14 @@
+{% load inventory_tags %}
+<li class="food-row{% if row.item.pk in just_added %} is-new{% endif %}" data-item="{{ row.item.pk }}" style="--h: {{ row.expiry.hue }}">
+  <span class="dot" aria-hidden="true"></span>
+  <a class="food-main" href="{{ row.item.get_absolute_url }}">
+    <span class="food-title"><span class="food-number">#{{ row.item.pk }}</span> {{ row.item.content }}</span>
+    <span class="food-meta">{{ row.item.food_type }} · <span data-role="portions-text">{{ row.item.portions }} portion{{ row.item.portions|pluralize }}</span></span>
+    {% include "inventory/_expiry.html" with expiry=row.expiry %}
+  </a>
+  <form method="post" action="{% url 'inventory:item_take' row.item.pk %}" data-take>
+    {% csrf_token %}
+    <input type="hidden" name="portions" value="{{ row.item.portions }}">
+    <button class="button" type="submit" aria-label="Take 1 portion of {{ row.item.content }}">{% icon "minus" %} Take 1</button>
+  </form>
+</li>

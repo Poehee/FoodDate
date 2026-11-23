@@ -1,18 +1,21 @@
-<figure class="freezer freezer--{{ freezer.kind }}" data-freezer="{{ freezer.pk }}">
+{% load inventory_tags %}<figure class="freezer freezer--{{ freezer.kind }}" data-freezer="{{ freezer.pk }}">
   {% if not freezer.has_drawers %}<div class="freezer-lid" aria-hidden="true"></div>{% endif %}
   <ol class="freezer-body" aria-label="{{ freezer.name }} {% if freezer.has_drawers %}drawers{% else %}space{% endif %}">
     {% for c in compartments %}
-      <li class="compartment" data-compartment="{{ c.pk }}" data-capacity="{{ c.capacity }}" data-used="{{ c.used }}">
+      <li class="compartment{% if selectable and selected.pk == c.pk %} is-selected{% endif %}" data-compartment="{{ c.pk }}" data-capacity="{{ c.capacity }}" data-used="{{ c.used }}">
+        {% if selectable %}<a class="compartment-link" href="?drawer={{ c.pk }}#drawer"{% if selected.pk == c.pk %} aria-current="true"{% endif %}>{% endif %}
         {% if freezer.has_drawers %}<span class="compartment-handle" aria-hidden="true"></span>{% endif %}
-        <div class="compartment-head">
+        <span class="compartment-head">
           <span class="compartment-name" data-role="name">{{ c.label }}</span>
           <span class="compartment-count"><span data-role="used">{{ c.used }}</span> of <span data-role="capacity">{{ c.capacity }}</span> portions</span>
-        </div>
+        </span>
         {% if c.cells is not None %}
-          <div class="portions portions--cells" data-role="portions" style="--n: {{ c.capacity }}" aria-hidden="true">{% for used in c.cells %}<span class="cell{% if used %} is-used{% endif %}"></span>{% endfor %}</div>
+          <span class="portions portions--cells" data-role="portions" style="--n: {{ c.capacity }}" aria-hidden="true">{% for hue in c.cells %}<span class="cell{% if hue is not None %} is-used" style="--h: {{ hue }}{% endif %}"></span>{% endfor %}</span>
         {% else %}
-          <div class="portions portions--bar" data-role="portions" aria-hidden="true"><span class="bar-fill" style="width: {{ c.fill_percent }}%"></span></div>
+          <span class="portions portions--bar" data-role="portions" aria-hidden="true"><span class="bar-fill" style="width: {{ c.fill_percent }}%{% if c.bar_hue is not None %}; --h: {{ c.bar_hue }}{% endif %}"></span></span>
         {% endif %}
+        <span class="compartment-warning" data-role="expired">{% if c.expired %}{% icon "alert" %} {{ c.expired }} expired portion{{ c.expired|pluralize }}{% endif %}</span>
+        {% if selectable %}</a>{% endif %}
       </li>
     {% endfor %}
   </ol>

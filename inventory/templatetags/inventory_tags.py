@@ -13,6 +13,12 @@ PATHS = {
     "trash": "M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3",
     "edit": "M4 20h4L18.5 9.5a2.1 2.1 0 0 0-4-4L4 16v4M13.5 6.5l4 4",
     "back": "M15 6l-6 6 6 6",
+    "alert": (
+        "M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9"
+        "a2 2 0 0 0-3.4 0"
+    ),
+    "clock": "M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0",
+    "check": "M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0",
 }
 
 
@@ -28,3 +34,8 @@ def icon(name: str, label: str = "") -> str:
         title,
         PATHS[name],
     )
+
+
+@register.filter
+def get_item(mapping: dict, key):
+    return mapping.get(key, "")
