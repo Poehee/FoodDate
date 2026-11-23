@@ -1,0 +1,29 @@
+{% extends "inventory/base.html" %}
+{% load inventory_tags %}
+
+{% block title %}{{ freezer.name }} · FoodDate{% endblock %}
+
+{% block content %}
+  <header class="page-header page-header--actions">
+    <div>
+      <h1>{{ freezer.name }}</h1>
+      <p class="muted">{% if freezer.has_drawers %}{{ compartments|length }} drawer{{ compartments|length|pluralize }}{% else %}Toploader{% endif %}</p>
+    </div>
+    <a class="button" href="{% url 'inventory:freezer_edit' freezer.pk %}">{% icon "edit" %} Edit</a>
+  </header>
+
+  {% if freezers|length > 1 %}
+    <nav class="switch" aria-label="Freezers">
+      {% for f in freezers %}
+        <a href="{{ f.get_absolute_url }}"{% if f.pk == freezer.pk %} aria-current="page"{% endif %}>{{ f.name }}</a>
+      {% endfor %}
+    </nav>
+  {% endif %}
+
+  <div class="freezer-layout">
+    {% include "inventory/_totals.html" %}
+    {% include "inventory/_freezer_picture.html" %}
+  </div>
+
+  <p class="page-footer"><a class="button button--quiet" href="{% url 'inventory:freezer_create' %}">{% icon "plus" %} Add another freezer</a></p>
+{% endblock %}

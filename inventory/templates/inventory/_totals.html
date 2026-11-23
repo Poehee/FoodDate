@@ -1,0 +1,5 @@
+<dl class="totals" data-totals="{{ freezer.pk }}"{% if live %} data-live{% endif %}>
+  <div class="total"><dt>Capacity</dt><dd data-total="capacity">{{ totals.capacity }}</dd></div>
+  <div class="total"><dt>In use</dt><dd data-total="used">{{ totals.used }}</dd></div>
+  <div class="total total--free"><dt>Free</dt><dd data-total="free">{{ totals.free }}</dd></div>
+</dl>
