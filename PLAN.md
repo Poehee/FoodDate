@@ -18,6 +18,9 @@ D2 and D5 were decided explicitly. For the others the default was approved.
 | D5 | Is the repository public or private? | **Decided: public**, as the repository was created | - |
 | D6 | What does "GitHub integration" cover? | Repository, issues, pull requests, CI, dependency updates | If you meant a feature inside the app, tell me what it should do |
 | D7 | Can part of a container be eaten? | Yes: take out some portions, delete the record at zero | All or nothing: one button, but a partly eaten container must be edited by hand |
+| D8 | Does taking a portion from the freezer view ask for confirmation? | No: it happens at once, with Undo for 5 seconds | Confirm every take: safer, but slower at the freezer |
+| D9 | What does "add a portion" in a drawer do? | Adds new food there: content, type and portions, location prefilled | Also +1 on an existing container, for topping up |
+| D10 | When does food start changing color? | **Decided: a general setting in weeks, default 4** | - |
 
 ## 2. Requirements
 
@@ -34,6 +37,8 @@ D2 and D5 were decided explicitly. For the others the default was approved.
 | R9 | Delete when consumed | "Consumed" takes out portions and deletes at zero | M2 | 4 minus 1 leaves 3, taking those 3 deletes the row |
 | R10 | GitHub repository named FoodDate | See section 8 | M0 | Folder is connected (done) and CI is green |
 | R11 | Professional, lean, good-looking and responsive on mobile | See "Look and feel" in section 6 | All | Every screen passes at 320, 375, 768 and 1280 px |
+| R13 | Expiring food moves gradually from green through yellow and orange to red | See "Expiration colors" in section 4 | M2, M3 | Colors match the table in section 4 at every day |
+| R12 | A picture of each freezer with portions per drawer, take and add portions, animated totals | See "Freezer view" in section 6 | M1, M2 | Taking or adding a portion animates the drawer and totals, and the server agrees |
 
 ## 3. Technology
 
@@ -63,6 +68,23 @@ D2 and D5 were decided explicitly. For the others the default was approved.
 - The weeks are copied onto the item, so a later settings change does not alter food already frozen.
 - Changing an item's date recalculates its expiration. Changing its type also refreshes its weeks.
 - An item is expired from the day after its expiration date.
+
+**Expiration colors**
+
+- Food is green until the color window starts, red once expired, and moves gradually through
+  yellow and orange in between. With the default window of 4 weeks: yellow at about 2 weeks,
+  orange at about 1 week.
+- The window is a general setting in whole weeks, from 1 to 52, default 4 (D10). Changing it
+  recolors all food at once, as colors are calculated, not stored.
+- The color is calculated per day: hue 145 (green) down to 25 (red), in the OKLCH color space so
+  each step looks evenly spaced.
+- Color is never the only signal, since red and green look alike to many people. Each item also
+  shows an icon and text: "Use by 14-02-2027", "6 days left", "Expires today" or
+  "Expired 3 days ago".
+- Light and dark mode each use their own lightness, so the colors keep at least 3:1 contrast
+  against the background.
+- Where it shows: each portion cell in the freezer view, sorted soonest first, and a dot beside
+  each item in lists.
 
 **Capacity**
 
@@ -94,6 +116,7 @@ erDiagram
     SETTINGS {
         smallint id PK "single row"
         int default_weeks
+        int color_window_weeks "1 to 52, default 4"
     }
     FREEZER {
         bigint id PK
@@ -133,11 +156,12 @@ Starter food types: Pasta, Burrito, Potato mash, Curry, Soup, Stew, Rice, Other.
 
 | Screen | Purpose |
 |---|---|
-| Stock (home) | Soonest expiration first, filters, expired and expiring items highlighted, Consumed button |
+| Freezer view | A drawing of each freezer with its portions, take or add portions per drawer |
+| Stock (home) | Soonest expiration first, filters, expiration colors, Consumed button |
 | Add / edit food | Content, type, date, location, portions per container, number of containers, expiration preview |
 | Label | The details of one container, including its current portions |
 | Freezers | Freezers and drawers, with used and total portions |
-| Settings | Default weeks, food types and their overrides |
+| Settings | General: default shelf life and color window, both in weeks. Food types and their overrides |
 
 ```
 +--------------------------------------+
@@ -156,6 +180,29 @@ Starter food types: Pasta, Burrito, Potato mash, Curry, Soup, Stew, Rice, Other.
 +--------------------------------------+
 ```
 
+### Freezer view
+
+- **Picture:** each freezer is drawn from its configuration. An upright freezer shows its drawers
+  stacked in their configured order, a toploader shows one chest. Two or more freezers get a
+  switch at the top.
+- **Portions:** each drawer, or the toploader, shows "6 of 10 portions" and a bar with one cell per
+  portion. Above large capacities (over 24) the cells merge into a continuous bar.
+- **Expiration:** each portion cell takes its container's expiration color, soonest first, so a
+  drawer's freshness shows at a glance. A drawer holding expired food also says so in text.
+- **Totals:** capacity, in use and free for the selected freezer.
+- **Select a drawer:** it slides out slightly and its containers appear below, soonest expiration
+  first, each with "Take 1". Below them is a form to add food to that drawer.
+- **Take a portion:** the count drops at once with Undo for 5 seconds (D8). At zero the container
+  slides away and is deleted.
+- **Add a portion:** new food goes into that drawer with its location prefilled (D9). Space that
+  doesn't fit is refused with "Only 2 portions free here".
+- **Animation:** cells fill or empty with a small bounce, numbers count to their new value and
+  rows slide in or out, in 300 to 450 ms. Movement is off when the device asks for reduced motion.
+- **Correctness:** the server decides. The page animates its answer, and if the server refuses,
+  for example because someone else just filled the drawer, the view returns to the real state
+  and explains why.
+- **Without JavaScript:** the same actions work as normal form posts, without animation.
+
 Expiration filters: expired, within 7, 14 or 30 days, or a custom date range.
 Dates display as DD-MM-YYYY and the interface is in English.
 
@@ -164,7 +211,8 @@ Dates display as DD-MM-YYYY and the interface is in English.
 - **Professional:** restrained colors, consistent spacing and type, plain wording, no decoration
   that does not help the task.
 - **Lean:** server-rendered HTML and one hand-written stylesheet. No CSS framework, web fonts or
-  external assets. JavaScript only where HTML cannot do the job.
+  external assets. JavaScript only where HTML cannot do the job, such as
+  the freezer view's animations: one small hand-written script, no framework.
 - **Mobile first:** one column on phones, using the extra width on tablets and desktops. No
   horizontal scrolling from 320 px up, and respects notches and home indicators.
 - **Touch:** controls are at least 44 px high, inputs at least 16 px text so iOS does not zoom.
@@ -211,8 +259,8 @@ Dates display as DD-MM-YYYY and the interface is in English.
 | # | Delivers | Verified by |
 |---|---|---|
 | M0 | Skeleton, database, CI, branch protection | Green CI and a page served locally |
-| M1 | Freezers, drawers, toploaders, capacity | Constraint tests, browser check |
-| M2 | Food types, weeks, add, edit, move, label, consume | Date, location and portion tests, two-user race tests |
+| M1 | Freezers, drawers, toploaders, capacity, freezer picture with animated totals | Constraint tests, browser check |
+| M2 | Food types, weeks, add, edit, move, label, consume, take and add in the freezer view | Date, location and portion tests, two-user race tests |
 | M3 | Search and filters | Boundary-date tests, browser check at phone width |
 | M4 | Login, home network access, backup and restore | Test from a second device (by you), restore into an empty database |
 
