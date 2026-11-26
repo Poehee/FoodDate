@@ -309,6 +309,45 @@
     update();
   });
 
+  // Stock filters are folded away on phones unless one is active; wider screens show them
+  const panel = document.querySelector("[data-filters-panel]");
+  if (panel && matchMedia("(min-width: 48rem)").matches) panel.open = true;
+
+  // Stock filters: apply as soon as something changes
+  document.querySelectorAll("form[data-filters]").forEach((form) => {
+    const range = form.querySelector("[data-range]");
+    const apply = form.querySelector("[data-apply]");
+    const isRange = () => form.elements.expires?.value === "range";
+    if (range) range.hidden = !isRange();
+    // Clear filters stays visible, only the button that applies them goes
+    if (apply) apply.hidden = true;
+    if (apply && !form.querySelector(".filter-actions a")) apply.parentElement.hidden = true;
+
+    let timer;
+    form.addEventListener("change", (event) => {
+      if (event.target.name === "expires" && range) {
+        range.hidden = !isRange();
+        if (isRange()) {
+          form.elements.expires_from.focus();
+          return; // wait for a date
+        }
+      }
+      clearTimeout(timer);
+      // Dates are often typed digit by digit: wait for a pause
+      const delay = event.target.type === "date" ? 600 : 0;
+      timer = setTimeout(() => {
+        const params = new URLSearchParams(new FormData(form));
+        for (const [key, value] of [...params]) if (!value) params.delete(key);
+        if (!isRange()) {
+          params.delete("expires_from");
+          params.delete("expires_to");
+        }
+        const query = params.toString();
+        location.assign(query ? `?${query}` : location.pathname);
+      }, delay);
+    });
+  });
+
   // Food form: preview the expiration date
   document.querySelectorAll("form[data-food-form]").forEach((form) => {
     const preview = form.querySelector("[data-expiry-preview]");

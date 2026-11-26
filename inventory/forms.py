@@ -345,3 +345,63 @@ class AddFoodTypeForm(forms.Form):
     def __init__(self, *args, default_weeks: int | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         show_default_weeks(self, default_weeks)
+
+
+# Stock list
+
+
+class StockFilterForm(forms.Form):
+    """Filters for the stock list. Everything is optional and can be combined."""
+
+    EXPIRES = [
+        ("", "Any time"),
+        ("expired", "Expired"),
+        ("7", "Within 7 days"),
+        ("14", "Within 14 days"),
+        ("30", "Within 30 days"),
+        ("range", "Dates"),
+    ]
+
+    type = forms.MultipleChoiceField(
+        label="Type", required=False, widget=forms.CheckboxSelectMultiple
+    )
+    expires = forms.ChoiceField(
+        label="Expires", choices=EXPIRES, required=False, widget=forms.RadioSelect
+    )
+    expires_from = forms.DateField(
+        label="From",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+    )
+    expires_to = forms.DateField(
+        label="To",
+        required=False,
+        widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
+    )
+
+    def __init__(self, *args, type_counts: list[tuple[FoodType, int]], **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only types that are in stock, with how many containers each
+        self.fields["type"].choices = [
+            (str(t.pk), f"{t.name} ({count})") for t, count in type_counts
+        ]
+
+    def clean_type(self) -> list[int]:
+        return [int(pk) for pk in self.cleaned_data["type"]]
+
+    def clean(self):
+        cleaned = super().clean()
+        start, end = cleaned.get("expires_from"), cleaned.get("expires_to")
+        if cleaned.get("expires") == "range":
+            if not start and not end:
+                self.add_error("expires_from", "Choose a from or to date.")
+            elif start and end and start > end:
+                self.add_error("expires_to", "Choose a date on or after the from date.")
+        return cleaned
+
+    @property
+    def active_count(self) -> int:
+        if not self.is_valid():
+            return 0
+        data = self.cleaned_data
+        return len(data["type"]) + (1 if data["expires"] else 0)

@@ -204,6 +204,15 @@ Starter food types: Pasta, Burrito, Potato mash, Curry, Soup, Stew, Rice, Other.
 - **Without JavaScript:** the same actions work as normal form posts, without animation.
 
 Expiration filters: expired, within 7, 14 or 30 days, or a custom date range.
+
+- **Expired:** expires before today.
+- **Within 7, 14 or 30 days:** not expired yet, and expires on or before today plus that many
+  days. Food expiring today is included.
+- **Dates:** expires between the two dates, both included. Either end may be left open.
+- **Type:** only types currently in stock are offered, with their number of containers. Several
+  can be chosen at once.
+- Filters combine, live in the address so a filtered list can be bookmarked, and fold away on
+  phones unless one is active.
 Dates display as DD-MM-YYYY and the interface is in English.
 
 ### Look and feel
