@@ -6,6 +6,7 @@ from django.db import DatabaseError, IntegrityError, connection, transaction
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST, require_safe
 
@@ -22,6 +23,7 @@ from .forms import (
     FreezerCreateForm,
     FreezerNameForm,
     GeneralSettingsForm,
+    StockFilterForm,
     ToploaderFormSet,
     food_type_name_taken,
 )
@@ -29,9 +31,12 @@ from .models import Compartment, FoodItem, FoodType, Freezer, Settings
 from .selectors import (
     compartment_state,
     expiry,
+    filter_stock,
     freezer_overview,
+    item_views,
     location_label,
     stock_summary,
+    stock_type_counts,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,8 +57,40 @@ def portions_text(n: int) -> str:
 
 @require_safe
 def home(request: HttpRequest) -> HttpResponse:
-    context = {"has_freezers": Freezer.objects.exists(), "stock": stock_summary()}
+    """The stock list: all food, soonest expiration first, with filters."""
+    data = request.GET.copy()
+    data.setdefault("expires", "")  # so "Any time" shows as chosen
+    form = StockFilterForm(data, type_counts=stock_type_counts())
+    filters = form.cleaned_data if form.is_valid() else {}
+    items = list(
+        filter_stock(
+            types=filters.get("type"),
+            expires=filters.get("expires", ""),
+            expires_from=filters.get("expires_from"),
+            expires_to=filters.get("expires_to"),
+        )
+    )
+    rows = item_views(items, Settings.load().color_window_weeks, Freezer.objects.count())
+    context = {
+        "has_freezers": Freezer.objects.exists(),
+        "stock": stock_summary(),
+        "form": form,
+        "rows": rows,
+        "shown_portions": sum(row.item.portions for row in rows),
+        "filtered": bool(filters.get("type") or filters.get("expires")),
+        "undo": request.session.pop(UNDO_SESSION_KEY, None),
+    }
     return render(request, "inventory/home.html", context)
+
+
+def _safe_next(request: HttpRequest) -> str | None:
+    """A page on this site to return to, such as the filtered stock list."""
+    target = request.POST.get("next", "")
+    if target and url_has_allowed_host_and_scheme(
+        target, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return target
+    return None
 
 
 @require_safe
@@ -281,7 +318,10 @@ def item_take(request: HttpRequest, pk: int) -> HttpResponse:
         if wants_json(request):
             return JsonResponse({"error": str(error), "reload": True}, status=409)
         messages.error(request, str(error))
-        return redirect(_back_to(item.compartment) if item else reverse("inventory:home"))
+        return redirect(
+            _safe_next(request)
+            or (_back_to(item.compartment) if item else reverse("inventory:home"))
+        )
 
     content = item.content
     text = (
@@ -299,7 +339,7 @@ def item_take(request: HttpRequest, pk: int) -> HttpResponse:
             }
         )
     request.session[UNDO_SESSION_KEY] = {"token": result.undo_token, "text": text}
-    return redirect(_back_to(result.compartment))
+    return redirect(_safe_next(request) or _back_to(result.compartment))
 
 
 @require_POST
@@ -315,7 +355,7 @@ def item_undo(request: HttpRequest) -> HttpResponse:
     if wants_json(request):
         return JsonResponse({"restored": item.pk, **compartment_state(compartment)})
     messages.success(request, f"Put back 1 portion of {item.content}")
-    return redirect(_back_to(compartment))
+    return redirect(_safe_next(request) or _back_to(compartment))
 
 
 # Settings

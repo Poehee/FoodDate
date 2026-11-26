@@ -1,27 +1,78 @@
 {% extends "inventory/base.html" %}
-{% load static %}
+{% load static inventory_tags %}
 
 {% block title %}Stock · FoodDate{% endblock %}
 
 {% block content %}
   <header class="page-header">
     <h1>Stock</h1>
-    <p class="muted">What's in your freezers and when to eat it.</p>
-  </header>
-  <section class="card empty" aria-labelledby="empty-title">
-    <img src="{% static 'inventory/icon.svg' %}" width="56" height="56" alt="">
-    {% if not has_freezers %}
-      <h2 id="empty-title">Add your first freezer</h2>
-      <p class="muted">Set up its drawers and how many portions each one holds.</p>
-      <a class="button button--primary" href="{% url 'inventory:freezer_create' %}">Add freezer</a>
-    {% elif stock.portions %}
-      <h2 id="empty-title">{{ stock.portions }} portion{{ stock.portions|pluralize }} in {{ stock.containers }} container{{ stock.containers|pluralize }}</h2>
-      <p class="muted">A list with search and filters arrives next. For now, find food per freezer.</p>
-      <a class="button button--primary" href="{% url 'inventory:freezer_list' %}">View freezers</a>
+    {% if stock.portions %}
+      <p class="muted">{{ stock.portions }} portion{{ stock.portions|pluralize }} in {{ stock.containers }} container{{ stock.containers|pluralize }}, soonest expiration first.</p>
     {% else %}
-      <h2 id="empty-title">Nothing in stock</h2>
-      <p class="muted">Add food from a drawer in your freezer.</p>
-      <a class="button button--primary" href="{% url 'inventory:freezer_list' %}">View freezers</a>
+      <p class="muted">What's in your freezers and when to eat it.</p>
     {% endif %}
-  </section>
+  </header>
+
+  {% if not stock.portions %}
+    <section class="card empty" aria-labelledby="empty-title">
+      <img src="{% static 'inventory/icon.svg' %}" width="56" height="56" alt="">
+      {% if not has_freezers %}
+        <h2 id="empty-title">Add your first freezer</h2>
+        <p class="muted">Set up its drawers and how many portions each one holds.</p>
+        <a class="button button--primary" href="{% url 'inventory:freezer_create' %}">Add freezer</a>
+      {% else %}
+        <h2 id="empty-title">Nothing in stock</h2>
+        <p class="muted">Add food from a drawer in your freezer.</p>
+        <a class="button button--primary" href="{% url 'inventory:freezer_list' %}">View freezers</a>
+      {% endif %}
+    </section>
+  {% else %}
+    <details class="filters-panel" data-filters-panel{% if filtered or form.errors %} open{% endif %}>
+    <summary class="filters-summary">
+      <span>Filters{% if form.active_count %} <span class="count">{{ form.active_count }}</span>{% endif %}</span>
+      <span class="filters-hint muted">Type and expiration</span>
+    </summary>
+    <form class="filters" method="get" data-filters aria-label="Filter stock">
+      <fieldset class="chips">
+        <legend>Type</legend>
+        {% for choice in form.type %}
+          <label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+        {% endfor %}
+        {% include "inventory/_errors.html" with field=form.type %}
+      </fieldset>
+      <fieldset class="chips">
+        <legend>Expires</legend>
+        {% for choice in form.expires %}
+          <label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+        {% endfor %}
+      </fieldset>
+      <div class="field-row date-range" data-range>
+        {% include "inventory/_field.html" with field=form.expires_from %}
+        {% include "inventory/_field.html" with field=form.expires_to %}
+      </div>
+      <div class="form-actions filter-actions">
+        <button class="button button--primary" type="submit" data-apply>Show food</button>
+        {% if request.GET %}<a class="button button--quiet" href="{% url 'inventory:home' %}">Clear filters</a>{% endif %}
+      </div>
+    </form>
+    </details>
+
+    <section class="card stock" aria-labelledby="results-title">
+      <h2 id="results-title" class="results-title" aria-live="polite">
+        {% if filtered %}{{ rows|length }} of {{ stock.containers }} container{{ stock.containers|pluralize }} match{% if rows|length == 1 %}es{% endif %}
+        {% else %}All food{% endif %}
+        {% if rows %}<span class="muted"> · {{ shown_portions }} portion{{ shown_portions|pluralize }}</span>{% endif %}
+      </h2>
+      {% if rows %}
+        <ol class="food-list" data-food-list>
+          {% for row in rows %}{% include "inventory/_food_row.html" with show_location=True %}{% endfor %}
+        </ol>
+      {% else %}
+        <div class="empty empty--inline">
+          <p><strong>No food matches these filters.</strong></p>
+          <a class="button" href="{% url 'inventory:home' %}">Clear filters</a>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
 {% endblock %}

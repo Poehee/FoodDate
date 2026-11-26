@@ -39,6 +39,7 @@
       <form class="toast" method="post" action="{% url 'inventory:item_undo' %}" data-undo>
         {% csrf_token %}
         <input type="hidden" name="token" value="{{ undo.token }}">
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
         <p>{{ undo.text }}</p>
         <button class="button button--quiet" type="submit">Undo</button>
         <span class="toast-timer" aria-hidden="true"></span>
