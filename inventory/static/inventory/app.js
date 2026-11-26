@@ -4,6 +4,7 @@
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const MAX_CELLS = 24; // keep in sync with selectors.MAX_CELLS
+  const UNDO_SECONDS = 5;
 
   const store = {
     get(key) {
@@ -22,6 +23,8 @@
     },
   };
 
+  const after = (ms, fn) => setTimeout(fn, reduceMotion ? 0 : ms);
+
   function countTo(el, to) {
     const from = Number(el.dataset.shown ?? el.textContent);
     el.dataset.shown = to;
@@ -39,16 +42,22 @@
     el.raf = requestAnimationFrame(step);
   }
 
-  function renderPortions(compartment, capacity, used, animate = true) {
+  const huesOf = (compartment) =>
+    [...compartment.querySelectorAll(".cell.is-used")].map((c) => Number(c.style.getPropertyValue("--h")));
+
+  // Redraw a compartment's cells. hues has one entry per used portion, soonest first.
+  function renderPortions(compartment, capacity, hues, { animate = true, pop = [] } = {}) {
     const old = compartment.querySelector('[data-role="portions"]');
     compartment.dataset.capacity = capacity;
+    compartment.dataset.used = hues.length;
     compartment.querySelector('[data-role="capacity"]').textContent = capacity;
-    const wantCells = capacity <= MAX_CELLS;
+    const used = compartment.querySelector('[data-role="used"]');
+    if (used) countTo(used, hues.length);
 
-    if (!wantCells) {
+    if (capacity > MAX_CELLS) {
       let bar = old;
       if (!old.classList.contains("portions--bar")) {
-        bar = document.createElement("div");
+        bar = document.createElement("span");
         bar.className = "portions portions--bar";
         bar.dataset.role = "portions";
         bar.setAttribute("aria-hidden", "true");
@@ -56,13 +65,14 @@
         bar.firstChild.className = "bar-fill";
         old.replaceWith(bar);
       }
-      bar.firstChild.style.width = `${Math.round((100 * used) / capacity)}%`;
+      bar.firstChild.style.width = `${Math.round((100 * hues.length) / capacity)}%`;
+      if (hues.length) bar.firstChild.style.setProperty("--h", hues[0]);
       return;
     }
 
     let grid = old;
     if (!old.classList.contains("portions--cells")) {
-      grid = document.createElement("div");
+      grid = document.createElement("span");
       grid.className = "portions portions--cells";
       grid.dataset.role = "portions";
       grid.setAttribute("aria-hidden", "true");
@@ -88,11 +98,19 @@
         cell.remove();
       }
     });
-    cells.forEach((cell, i) => cell.classList.toggle("is-used", i < used));
+    cells.forEach((cell, i) => {
+      const isUsed = i < hues.length;
+      cell.classList.toggle("is-used", isUsed);
+      if (isUsed) cell.style.setProperty("--h", hues[i]);
+      else cell.style.removeProperty("--h");
+      if (animate && !reduceMotion && pop.includes(i)) {
+        cell.classList.remove("is-pop");
+        void cell.offsetWidth; // restart the animation
+        cell.classList.add("is-pop");
+      }
+    });
     grid.style.setProperty("--n", Math.max(capacity, cells.length + leaving.length));
-    if (leaving.length) {
-      setTimeout(() => grid.style.setProperty("--n", capacity), reduceMotion ? 0 : 260);
-    }
+    if (leaving.length) after(260, () => grid.style.setProperty("--n", capacity));
   }
 
   function totalsOf(figure) {
@@ -109,33 +127,149 @@
     dl.querySelectorAll("[data-total]").forEach((dd) => countTo(dd, totals[dd.dataset.total]));
   }
 
-  // Freezer page: animate from what was shown last time, for example before an edit
-  document.querySelectorAll("[data-totals]:not([data-live])").forEach((dl) => {
-    const key = `fooddate:freezer:${dl.dataset.totals}`;
-    const figure = document.querySelector(`[data-freezer="${dl.dataset.totals}"]`);
-    if (!figure) return;
-    const now = { totals: totalsOf(figure), capacities: {} };
+  function snapshot(figure) {
+    const compartments = {};
     figure.querySelectorAll("[data-compartment]").forEach((c) => {
-      now.capacities[c.dataset.compartment] = Number(c.dataset.capacity);
+      compartments[c.dataset.compartment] = { capacity: Number(c.dataset.capacity), hues: huesOf(c) };
     });
-    const before = store.get(key);
-    store.set(key, now);
-    if (!before || reduceMotion) return;
+    return { totals: totalsOf(figure), compartments };
+  }
 
-    dl.querySelectorAll("[data-total]").forEach((dd) => {
-      dd.dataset.shown = before.totals[dd.dataset.total] ?? 0;
-      dd.textContent = dd.dataset.shown;
-    });
-    figure.querySelectorAll("[data-compartment]").forEach((c) => {
-      const previous = before.capacities[c.dataset.compartment];
-      if (previous && previous !== now.capacities[c.dataset.compartment]) {
-        renderPortions(c, previous, Number(c.dataset.used), false);
-        requestAnimationFrame(() =>
-          renderPortions(c, now.capacities[c.dataset.compartment], Number(c.dataset.used)),
-        );
+  // Freezer page: animate from what was shown last time, for example before adding food
+  const viewTotals = document.querySelector("[data-totals]:not([data-live])");
+  const viewFigure = viewTotals && document.querySelector(`[data-freezer="${viewTotals.dataset.totals}"]`);
+  const viewKey = viewTotals && `fooddate:freezer:${viewTotals.dataset.totals}`;
+  const remember = () => viewKey && store.set(viewKey, snapshot(viewFigure));
+
+  if (viewFigure) {
+    const before = store.get(viewKey);
+    const now = snapshot(viewFigure);
+    store.set(viewKey, now);
+    if (before?.compartments && !reduceMotion) {
+      viewTotals.querySelectorAll("[data-total]").forEach((dd) => {
+        dd.dataset.shown = before.totals[dd.dataset.total] ?? 0;
+        dd.textContent = dd.dataset.shown;
+      });
+      viewFigure.querySelectorAll("[data-compartment]").forEach((c) => {
+        const was = before.compartments[c.dataset.compartment];
+        const is = now.compartments[c.dataset.compartment];
+        if (!was || (was.capacity === is.capacity && was.hues.join() === is.hues.join())) return;
+        renderPortions(c, was.capacity, was.hues, { animate: false });
+        const pop = is.hues.map((_, i) => i).slice(was.hues.length);
+        requestAnimationFrame(() => renderPortions(c, is.capacity, is.hues, { pop }));
+      });
+      requestAnimationFrame(() => showTotals(viewTotals, now.totals));
+    }
+  }
+
+  // Undo toast
+  const toasts = document.querySelector("[data-toasts]");
+
+  function dismiss(toast) {
+    if (!toast.isConnected) return;
+    toast.classList.add("is-leaving");
+    after(260, () => toast.remove());
+  }
+
+  function armToast(toast) {
+    const timer = setTimeout(() => dismiss(toast), UNDO_SECONDS * 1000);
+    toast.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      clearTimeout(timer);
+      const button = toast.querySelector("button");
+      button.disabled = true;
+      try {
+        const response = await post(toast);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        remember(); // the reload animates the portion coming back
+        location.reload();
+      } catch (error) {
+        toast.querySelector("p").textContent = error.message || "Couldn't undo. Try again.";
+        button.remove();
+        after(3000, () => dismiss(toast));
       }
     });
-    requestAnimationFrame(() => showTotals(dl, now.totals));
+  }
+
+  function showUndo(undo, csrf) {
+    toasts.querySelectorAll("form.toast").forEach(dismiss);
+    const toast = document.createElement("form");
+    toast.className = "toast";
+    toast.method = "post";
+    toast.action = toasts.dataset.undoUrl;
+    toast.innerHTML =
+      '<input type="hidden" name="csrfmiddlewaretoken"><input type="hidden" name="token">' +
+      '<p></p><button class="button button--quiet" type="submit">Undo</button>' +
+      '<span class="toast-timer" aria-hidden="true"></span>';
+    toast.elements.csrfmiddlewaretoken.value = csrf;
+    toast.elements.token.value = undo.token;
+    toast.querySelector("p").textContent = undo.text;
+    toasts.append(toast);
+    armToast(toast);
+  }
+
+  toasts?.querySelectorAll("form.toast").forEach(armToast);
+  toasts?.querySelectorAll("[data-message]").forEach((message) => {
+    const seconds = message.classList.contains("toast--error") ? 10 : 6;
+    setTimeout(() => dismiss(message), seconds * 1000);
+    message.addEventListener("click", () => dismiss(message));
+  });
+
+  function post(form) {
+    return fetch(form.action, {
+      method: "POST",
+      body: new FormData(form),
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    });
+  }
+
+  // Take 1: update the drawer in place instead of reloading
+  document.querySelectorAll("form[data-take]").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = form.querySelector("button");
+      if (button.disabled) return;
+      button.disabled = true;
+      const row = form.closest("[data-item]");
+      let data;
+      try {
+        const response = await post(form);
+        data = await response.json();
+        if (response.status === 409 && data.reload) {
+          remember();
+          location.reload();
+          return;
+        }
+        if (!response.ok) throw new Error(data.error);
+      } catch {
+        button.disabled = false;
+        form.submit(); // let the server handle it the plain way
+        return;
+      }
+
+      const compartment = viewFigure?.querySelector(`[data-compartment="${data.compartment.id}"]`);
+      if (compartment) {
+        renderPortions(compartment, data.compartment.capacity, data.compartment.hues);
+        const warning = compartment.querySelector('[data-role="expired"]');
+        if (warning && !data.compartment.expired) warning.textContent = "";
+      }
+      if (viewTotals) showTotals(viewTotals, data.totals);
+      const free = document.querySelector(`[data-panel="${data.compartment.id}"] [data-role="free"]`);
+      if (free) free.textContent = `${data.compartment.free} free`;
+
+      if (data.item.portions === 0) {
+        row.classList.add("is-leaving");
+        after(300, () => row.remove());
+      } else {
+        row.querySelector('[data-role="portions-text"]').textContent = data.portions_text;
+        form.elements.portions.value = data.item.portions;
+        button.disabled = false;
+      }
+      remember();
+      showUndo(data.undo, form.elements.csrfmiddlewaretoken.value);
+    });
   });
 
   // Number fields get - and + buttons
@@ -152,7 +286,8 @@
       b.addEventListener("click", () => {
         const min = Number(input.min || -Infinity);
         const max = Number(input.max || Infinity);
-        const value = Number(input.value) || 0;
+        // An empty field starts from its placeholder, such as the default shelf life
+        const value = Number(input.value || input.placeholder) || 0;
         input.value = Math.min(max, Math.max(min, value + delta));
         input.dispatchEvent(new Event("input", { bubbles: true }));
       });
@@ -174,6 +309,28 @@
     update();
   });
 
+  // Food form: preview the expiration date
+  document.querySelectorAll("form[data-food-form]").forEach((form) => {
+    const preview = form.querySelector("[data-expiry-preview]");
+    const type = form.elements.food_type;
+    const date = form.elements.frozen_on;
+    if (!preview || !type || !date) return;
+    const update = () => {
+      const weeks = Number(type.selectedOptions[0]?.dataset.weeks || type.dataset.defaultWeeks);
+      const frozen = date.valueAsDate;
+      preview.hidden = !frozen || !weeks;
+      if (preview.hidden) return;
+      const expires = new Date(frozen.getTime() + weeks * 7 * 864e5);
+      const dd = String(expires.getUTCDate()).padStart(2, "0");
+      const mm = String(expires.getUTCMonth() + 1).padStart(2, "0");
+      preview.querySelector('[data-role="date"]').textContent =
+        `${dd}-${mm}-${expires.getUTCFullYear()} (${weeks} weeks)`;
+    };
+    type.addEventListener("change", update);
+    date.addEventListener("input", update);
+    update();
+  });
+
   // Edit freezer: the preview follows the form as you type
   document.querySelectorAll("form[data-live-form]").forEach((form) => {
     const figure = document.querySelector("[data-freezer]");
@@ -188,10 +345,11 @@
       if (!compartment) return;
       const capacity = form.elements[`${prefix}capacity`];
       const name = form.elements[`${prefix}name`];
+      const hues = huesOf(compartment);
       capacity?.addEventListener("input", () => {
         const value = Number(capacity.value);
-        if (!Number.isInteger(value) || value < 1 || value > Number(capacity.max)) return;
-        renderPortions(compartment, value, Number(compartment.dataset.used));
+        if (!Number.isInteger(value) || value < Math.max(1, hues.length) || value > Number(capacity.max)) return;
+        renderPortions(compartment, value, hues);
         showTotals(dl, totalsOf(figure));
       });
       name?.addEventListener("input", () => {

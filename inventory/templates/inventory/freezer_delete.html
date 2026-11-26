@@ -10,9 +10,14 @@
   </header>
   <form method="post" class="card form">
     {% csrf_token %}
-    <p>This removes the freezer and its {% if freezer.has_drawers %}drawers{% else %}settings{% endif %}. You can't undo this.</p>
-    <div class="form-actions">
-      <button class="button button--danger" type="submit">Remove freezer</button>
+    {% if portions %}
+      <p>{{ freezer.name }} still holds {{ portions }} portion{{ portions|pluralize }}. Take out or move that food first.</p>
+      <div class="form-actions">
+    {% else %}
+      <p>This removes the freezer and its {% if freezer.has_drawers %}drawers{% else %}settings{% endif %}. You can't undo this.</p>
+      <div class="form-actions">
+        <button class="button button--danger" type="submit">Remove freezer</button>
+    {% endif %}
       <a class="button button--quiet" href="{% url 'inventory:freezer_edit' freezer.pk %}">Cancel</a>
     </div>
   </form>

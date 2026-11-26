@@ -1,0 +1,67 @@
+{% extends "inventory/base.html" %}
+{% load inventory_tags %}
+
+{% block title %}Settings · FoodDate{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <h1>Settings</h1>
+  </header>
+  <form method="post" class="settings" novalidate>
+    {% csrf_token %}
+    <button class="visually-hidden" type="submit" name="action" value="save" tabindex="-1" aria-hidden="true">Save</button>
+
+    <section class="card form" aria-labelledby="general-title">
+      <h2 id="general-title">General</h2>
+      <div class="field-row">
+        {% include "inventory/_field.html" with field=general.default_weeks %}
+        {% include "inventory/_field.html" with field=general.color_window_weeks %}
+      </div>
+    </section>
+
+    <section class="card form" id="types" aria-labelledby="types-title">
+      <h2 id="types-title">Food types</h2>
+      <p class="hint">Shelf life in weeks. Empty uses the default of {{ general.instance.default_weeks }} weeks. Changes apply to food you add from now on.</p>
+      {{ types.management_form }}
+      <ol class="type-rows">
+        {% for form in types %}
+          <li class="type-row">
+            {{ form.id }}
+            <div class="field{% if form.name.errors %} field--invalid{% endif %}">
+              <label for="{{ form.name.id_for_label }}"><span class="visually-hidden">Food type {{ forloop.counter }} </span>Name</label>
+              {{ form.name }}
+              {% include "inventory/_errors.html" with field=form.name %}
+            </div>
+            <div class="field{% if form.weeks.errors %} field--invalid{% endif %}">
+              <label for="{{ form.weeks.id_for_label }}"><span class="visually-hidden">{{ form.instance.name }} </span>Weeks</label>
+              {{ form.weeks }}
+              {% include "inventory/_errors.html" with field=form.weeks %}
+            </div>
+            <div class="drawer-actions">
+              {% if form.instance.pk in in_use %}
+                <span class="in-use" title="Used by food in your freezers">In use</span>
+              {% else %}
+                <button class="icon-button icon-button--danger" type="submit" name="action" value="delete:{{ form.instance.pk }}">{% icon "trash" "Remove "|add:form.instance.name %}</button>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ol>
+      <div class="type-row type-row--new">
+        {% include "inventory/_field.html" with field=add_form.name %}
+        <div class="field{% if add_form.weeks.errors %} field--invalid{% endif %}">
+          <label for="{{ add_form.weeks.id_for_label }}"><span class="visually-hidden">New type </span>Weeks</label>
+          {{ add_form.weeks }}
+          {% include "inventory/_errors.html" with field=add_form.weeks %}
+        </div>
+        <div class="drawer-actions">
+          <button class="button" type="submit" name="action" value="add">{% icon "plus" %} Add</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="form-actions">
+      <button class="button button--primary" type="submit" name="action" value="save">Save settings</button>
+    </div>
+  </form>
+{% endblock %}

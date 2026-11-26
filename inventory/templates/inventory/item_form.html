@@ -1,0 +1,43 @@
+{% extends "inventory/base.html" %}
+{% load inventory_tags %}
+
+{% block title %}{% if creating %}Add food{% else %}Edit #{{ item.pk }}{% endif %} · FoodDate{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    {% if creating %}
+      <a class="back" href="{% url 'inventory:freezer_list' %}">{% icon "back" %} Freezers</a>
+      <h1>Add food</h1>
+    {% else %}
+      <a class="back" href="{{ item.get_absolute_url }}">{% icon "back" %} #{{ item.pk }}</a>
+      <h1>Edit #{{ item.pk }}</h1>
+    {% endif %}
+  </header>
+  <form method="post" class="card form" novalidate data-food-form>
+    {% csrf_token %}
+    {% for error in form.non_field_errors %}<p class="message message--error" role="alert">{{ error }}</p>{% endfor %}
+    {% include "inventory/_field.html" with field=form.content %}
+    <div class="field-row">
+      <div class="field{% if form.food_type.errors %} field--invalid{% endif %}">
+        <label for="{{ form.food_type.id_for_label }}">{{ form.food_type.label }}</label>
+        <select name="{{ form.food_type.html_name }}" id="{{ form.food_type.id_for_label }}" data-default-weeks="{{ form.food_type.field.default_weeks }}">
+          {% for value, label in form.food_type.field.choices %}
+            <option value="{{ value }}" data-weeks="{% with v=value|stringformat:'s' %}{{ form.food_type.field.weeks|get_item:v }}{% endwith %}"{% if form.food_type.value|stringformat:'s' == value|stringformat:'s' %} selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% include "inventory/_errors.html" with field=form.food_type %}
+      </div>
+      {% include "inventory/_field.html" with field=form.frozen_on %}
+    </div>
+    <p class="expiry-preview" data-expiry-preview hidden>Expires on <strong data-role="date"></strong></p>
+    <div class="field-row">
+      {% include "inventory/_field.html" with field=form.portions %}
+      {% if form.containers %}{% include "inventory/_field.html" with field=form.containers %}{% endif %}
+    </div>
+    {% include "inventory/_field.html" with field=form.compartment %}
+    <div class="form-actions">
+      <button class="button button--primary" type="submit">{% if creating %}Add food{% else %}Save changes{% endif %}</button>
+      <a class="button button--quiet" href="{% if item %}{{ item.get_absolute_url }}{% else %}{% url 'inventory:freezer_list' %}{% endif %}">Cancel</a>
+    </div>
+  </form>
+{% endblock %}

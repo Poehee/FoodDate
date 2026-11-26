@@ -22,7 +22,53 @@
 
   <div class="freezer-layout">
     {% include "inventory/_totals.html" %}
-    {% include "inventory/_freezer_picture.html" %}
+    <div class="freezer-main">
+      {% include "inventory/_freezer_picture.html" with selectable=freezer.has_drawers %}
+
+      {% if selected %}
+        <section class="card drawer-panel" id="drawer" aria-labelledby="drawer-title" data-panel="{{ selected.pk }}">
+          <header class="drawer-panel-head">
+            <h2 id="drawer-title">{{ selected_view.label }}</h2>
+            <span class="muted" data-role="free">{{ selected_view.free }} free</span>
+          </header>
+          {% if selected_items %}
+            <ol class="food-list" data-food-list>
+              {% for row in selected_items %}{% include "inventory/_food_row.html" %}{% endfor %}
+            </ol>
+          {% else %}
+            <p class="muted empty-drawer" data-empty>Nothing in here yet.</p>
+          {% endif %}
+
+          <form class="quick-add" method="post" action="{% url 'inventory:item_create' %}" novalidate>
+            {% csrf_token %}
+            <h3>Add food here</h3>
+            <input type="hidden" name="compartment" value="{{ selected.pk }}">
+            <input type="hidden" name="containers" value="1">
+            <input type="hidden" name="frozen_on" value="{% now 'Y-m-d' %}">
+            <div class="quick-add-fields">
+              <div class="field">
+                <label for="quick-content">What is it</label>
+                <input type="text" id="quick-content" name="content" maxlength="80" placeholder="Chicken tikka" autocomplete="off" required>
+              </div>
+              <div class="field">
+                <label for="quick-type">Type</label>
+                <select id="quick-type" name="food_type">
+                  {% for value, label in add_form.food_type.field.choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+              </div>
+              <div class="field">
+                <label for="quick-portions">Portions</label>
+                <input type="number" id="quick-portions" name="portions" value="1" min="1" max="{{ selected_view.free|default:1 }}" inputmode="numeric" data-stepper>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="button button--primary" type="submit">{% icon "plus" %} Add</button>
+              <a class="button button--quiet" href="{% url 'inventory:item_create' %}?drawer={{ selected.pk }}">More options</a>
+            </div>
+          </form>
+        </section>
+      {% endif %}
+    </div>
   </div>
 
   <p class="page-footer"><a class="button button--quiet" href="{% url 'inventory:freezer_create' %}">{% icon "plus" %} Add another freezer</a></p>
