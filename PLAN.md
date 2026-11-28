@@ -1,6 +1,6 @@
 # FoodDate: implementation plan
 
-Status: **approved on 22-11-2026**. Progress is tracked in the milestone issues and pull requests.
+Status: **approved on 22-11-2026**, M4 revised on 28-11-2026. Progress is tracked in the milestone issues and pull requests.
 
 A web app to track leftover food in one or more freezers: what it is, where it is, and when
 to eat it by.
@@ -14,13 +14,16 @@ D2 and D5 were decided explicitly. For the others the default was approved.
 | D1 | Does "labeled" mean a printed sticker? | On-screen label with a short number to write on the container | Printed labels: adds a milestone, and I need your printer and label size |
 | D2 | What does capacity count? | **Decided: portions** | - |
 | D3 | Where are the weeks configured? | One global default, optionally overridden per food type | Global only: slightly simpler |
-| D4 | Who uses it, from where? | Your household, on laptop and phones on home Wi-Fi, with one shared login | Laptop only: no login. Internet: adds hosting and HTTPS |
+| D4 | Who uses it, from where? | **Decided: your household only, from anywhere, over a private Tailscale network** | - |
 | D5 | Is the repository public or private? | **Decided: public**, as the repository was created | - |
 | D6 | What does "GitHub integration" cover? | Repository, issues, pull requests, CI, dependency updates | If you meant a feature inside the app, tell me what it should do |
 | D7 | Can part of a container be eaten? | Yes: take out some portions, delete the record at zero | All or nothing: one button, but a partly eaten container must be edited by hand |
 | D8 | Does taking a portion from the freezer view ask for confirmation? | No: it happens at once, with Undo for 5 seconds | Confirm every take: safer, but slower at the freezer |
 | D9 | What does "add a portion" in a drawer do? | Adds new food there: content, type and portions, location prefilled | Also +1 on an existing container, for topping up |
 | D10 | When does food start changing color? | **Decided: a general setting in weeks, default 4** | - |
+| D11 | Which computer runs it? | This Mac for now, moved to an always-on device later if needed | An always-on device from the start, such as a Mac mini, Raspberry Pi or NAS with Docker |
+| D12 | One shared login or one per person? | One shared household login, remembered on each phone for a year | One login per person: needs an account page, and shows who did what only if history is added |
+| D13 | Where do backups go? | Daily to a folder outside the project, kept 30 days, plus Time Machine | Also copy to cloud storage |
 
 ## 2. Requirements
 
@@ -38,6 +41,7 @@ D2 and D5 were decided explicitly. For the others the default was approved.
 | R10 | GitHub repository named FoodDate | See section 8 | M0 | Folder is connected (done) and CI is green |
 | R11 | Professional, lean, good-looking and responsive on mobile | See "Look and feel" in section 6 | All | Every screen passes at 320, 375, 768 and 1280 px |
 | R13 | Expiring food moves gradually from green through yellow and orange to red | See "Expiration colors" in section 4 | M2, M3 | Colors match the table in section 4 at every day |
+| R14 | The household can use it from anywhere, but nobody else can reach it | See "Running at home" in section 3 | M4 | A phone off home Wi-Fi opens it over HTTPS, and a device outside the private network cannot |
 | R12 | A picture of each freezer with portions per drawer, take and add portions, animated totals | See "Freezer view" in section 6 | M1, M2 | Taking or adding a portion animates the drawer and totals, and the server agrees |
 
 ## 3. Technology
@@ -50,6 +54,35 @@ D2 and D5 were decided explicitly. For the others the default was approved.
 | Database | PostgreSQL 17 in Docker Compose | The image is already on this Mac |
 | Database port | **5433** | Another project's container uses 5432 and stays untouched |
 | Quality | pytest, Ruff | Tests run on PostgreSQL, not SQLite |
+
+### Running at home (M4)
+
+```mermaid
+flowchart LR
+    phone["Household phones<br/>Tailscale app"] -- "HTTPS, private network" --> serve
+    subgraph mac ["This Mac"]
+        serve["tailscale serve<br/>certificate for *.ts.net"] --> web["FoodDate<br/>gunicorn, 127.0.0.1:8000"]
+        web --> db[("PostgreSQL 17")]
+        backup["Daily backup"] --> db
+    end
+```
+
+- **Access:** [Tailscale](https://tailscale.com) puts the Mac and each household phone on one private
+  network, at home or away. Nothing is opened to the internet: no port forwarding and no public
+  address. Tailscale Funnel, which would make it public, stays off.
+- **Address and HTTPS:** `tailscale serve` gives the app an address like
+  `https://<mac-name>.<tailnet>.ts.net` with a valid certificate, so phones show no warnings.
+- **Containers:** Docker Compose runs the app (gunicorn) and PostgreSQL, restarting them after a
+  crash or reboot. The app only listens on the Mac itself, so it's reachable only through Tailscale.
+- **Production settings:** debug off, secure cookies, HSTS, trusted origins limited to the Tailscale
+  address, and secrets only in `.env`.
+- **Login:** one household login (D12). Without it, anyone on the private network could change the
+  stock, for example a guest device added later.
+- **Add to home screen:** a web app manifest, so FoodDate opens from a phone's home screen like an app.
+- **Backups:** a daily `pg_dump`, kept 30 days (D13). A documented restore, tested into an empty
+  database.
+- **Development:** `runserver` on port 8000 is replaced by the container. Development moves to
+  port 8001 with its own database, so testing never touches real data.
 
 ## 4. Rules
 
@@ -271,15 +304,16 @@ Dates display as DD-MM-YYYY and the interface is in English.
 | M1 | Freezers, drawers, toploaders, capacity, freezer picture with animated totals | Constraint tests, browser check |
 | M2 | Food types, weeks, add, edit, move, label, consume, take and add in the freezer view | Date, location and portion tests, two-user race tests |
 | M3 | Search and filters | Boundary-date tests, browser check at phone width |
-| M4 | Login, home network access, backup and restore | Test from a second device (by you), restore into an empty database |
+| M4 | Household login, production containers, Tailscale access over HTTPS, add to home screen, daily backups and restore | Login and settings tests, restore into an empty database, phone test off home Wi-Fi (by you) |
 
 ## 10. Risks
 
 | Risk | Handling |
 |---|---|
-| The app is available only while this Mac and Docker run | Accept for now, or move it to an always-on device later |
-| Plain HTTP on home Wi-Fi | Acceptable at home, never port-forward it |
-| Data loss | Named Docker volume and a documented `pg_dump` backup |
+| The app is available only while this Mac is awake and Docker runs | Docker starts at login and the Mac doesn't sleep on power. A closed lid or a trip away takes FoodDate offline: move it to an always-on device if that matters (D11) |
+| Someone outside the household reaches the app | Only reachable over Tailscale, never port-forwarded, Funnel off, and a login on top |
+| Data loss | Daily backups kept 30 days, a tested restore, and Time Machine or another copy off this disk |
+| A lost phone keeps access | Remove it in the Tailscale admin console and change the household password |
 | A written location goes stale after a move or a second freezer | The app is authoritative, find the container by its number |
 | A written portion count goes stale after eating part | Write only the number on the container, the app has the count |
 
